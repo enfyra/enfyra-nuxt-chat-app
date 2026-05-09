@@ -39,6 +39,7 @@ const { logout } = useAuth();
 const { state: confirmState, confirm, setLoading } = useGlobalConfirm();
 const detailsOpen = ref(false);
 const conversationsOpen = ref(false);
+const conversationCreatorOpen = ref(false);
 const listLoading = computed(() => conversationsLoading.value && chatItems.value.length === 0);
 const threadLoading = computed(() => messagesLoading.value || (conversationsLoading.value && activeId.value !== 'draft'));
 const realtimeConnected = computed(() => socketState.value === 'connected');
@@ -172,6 +173,8 @@ onBeforeUnmount(() => {
       v-model:open="conversationsOpen"
       direction="left"
       :handle="false"
+      handle-only
+      :dismissible="!conversationCreatorOpen"
       :ui="{ content: 'w-[min(22rem,92vw)] bg-[var(--card)] border-r border-[var(--border)]' }"
     >
       <template #content>
@@ -186,6 +189,7 @@ onBeforeUnmount(() => {
           @select="selectConversationAndClose"
           @start-dm="startDirectMessage"
           @create-group="createGroupChat"
+          @modal-open-change="conversationCreatorOpen = $event"
         />
       </template>
     </UDrawer>
@@ -194,6 +198,8 @@ onBeforeUnmount(() => {
       v-model:open="detailsOpen"
       direction="right"
       :handle="false"
+      handle-only
+      :modal="!confirmState.open"
       :dismissible="!confirmState.open"
       :ui="{ content: 'w-[min(24rem,100vw)] bg-[var(--card)] border-l border-[var(--border)]' }"
     >

@@ -15,6 +15,7 @@ const emit = defineEmits<{
   select: [id: string];
   startDm: [user: ChatUser];
   createGroup: [payload: { members: ChatUser[] }];
+  modalOpenChange: [open: boolean];
 }>();
 
 const query = ref('');
@@ -61,6 +62,7 @@ const filteredItems = computed(() => {
       :busy="creatingChat"
       @start-dm="emit('startDm', $event)"
       @create-group="emit('createGroup', $event)"
+      @modal-open-change="emit('modalOpenChange', $event)"
     />
 
     <div class="conversation-scroll">
@@ -82,4 +84,3 @@ const filteredItems = computed(() => {
     </div>
   </aside>
 </template>
-

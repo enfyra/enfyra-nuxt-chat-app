@@ -24,5 +24,8 @@
     "@vue/language-core": "^3.2.8",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.2.8"
+  },
+  "resolutions": {
+    "reka-ui": "2.9.6"
   }
 }

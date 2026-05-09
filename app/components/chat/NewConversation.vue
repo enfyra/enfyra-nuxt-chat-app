@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   startDm: [user: ChatUser];
   createGroup: [payload: { members: ChatUser[] }];
+  modalOpenChange: [open: boolean];
 }>();
 
 const dmOpen = ref(false);
@@ -67,17 +68,21 @@ const searchUsers = async () => {
   const runId = ++searchRun;
   loading.value = true;
   try {
-    const filter = normalized
-      ? {
-          _or: [
-            { email: { _contains: normalized } },
-            { displayName: { _contains: normalized } },
-          ],
-        }
-      : {};
+    const filterClauses = [
+      ...(props.currentUserId ? [{ id: { _neq: props.currentUserId } }] : []),
+      ...(normalized
+        ? [{
+            _or: [
+              { email: { _contains: normalized } },
+              { displayName: { _contains: normalized } },
+            ],
+          }]
+        : []),
+    ];
+    const filter = filterClauses.length ? { _and: filterClauses } : null;
     const response: any = await $fetch('/enfyra/user_definition', {
       query: {
-        ...(normalized ? { filter: JSON.stringify(filter) } : {}),
+        ...(filter ? { filter: JSON.stringify(filter) } : {}),
         limit: groupOpen.value ? 8 : 6,
       },
     });
@@ -124,6 +129,10 @@ watch(query, () => {
     void searchUsers();
   }, 280);
 });
+
+watch(modalOpen, (open) => {
+  emit('modalOpenChange', open);
+}, { flush: 'sync' });
 
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer);

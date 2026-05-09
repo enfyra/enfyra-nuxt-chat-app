@@ -44,17 +44,21 @@ const searchUsers = async () => {
   const runId = ++searchRun;
   loading.value = true;
   try {
-    const filter = normalized
-      ? {
-          _or: [
-            { email: { _contains: normalized } },
-            { displayName: { _contains: normalized } },
-          ],
-        }
-      : {};
+    const filterClauses = [
+      ...(props.currentUserId ? [{ id: { _neq: props.currentUserId } }] : []),
+      ...(normalized
+        ? [{
+            _or: [
+              { email: { _contains: normalized } },
+              { displayName: { _contains: normalized } },
+            ],
+          }]
+        : []),
+    ];
+    const filter = filterClauses.length ? { _and: filterClauses } : null;
     const response: any = await $fetch('/enfyra/user_definition', {
       query: {
-        ...(normalized ? { filter: JSON.stringify(filter) } : {}),
+        ...(filter ? { filter: JSON.stringify(filter) } : {}),
         limit: 8,
       },
     });
@@ -183,4 +187,3 @@ onBeforeUnmount(() => {
     </Teleport>
   </UCard>
 </template>
-
