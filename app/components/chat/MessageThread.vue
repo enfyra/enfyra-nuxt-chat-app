@@ -57,6 +57,7 @@ const bubblePosition = (index: number, total: number) => {
 const visibleTypingUsers = computed(() =>
   (props.typingUsers || []).filter((item) => item.conversationId === props.conversation.id),
 );
+const hasConversation = computed(() => Boolean(props.conversation.id));
 
 const typingLabel = computed(() => {
   const users = visibleTypingUsers.value;
@@ -150,7 +151,7 @@ watch(
         <USkeleton class="title-skeleton" />
         <USkeleton class="status-skeleton" />
       </div>
-      <div v-else class="thread-title" :class="{ 'has-typing': typingLabel }">
+      <div v-else class="thread-title" :class="{ 'has-typing': typingLabel, empty: !hasConversation }">
         <h1>{{ conversation.title }}</h1>
         <p class="thread-status" :class="{ active: typingLabel }">
           <span v-if="typingLabel">{{ typingLabel }}</span>
@@ -165,7 +166,7 @@ watch(
         <USkeleton class="member-skeleton" />
         <USkeleton class="data-skeleton" />
       </div>
-      <div v-else class="thread-actions">
+      <div v-else-if="hasConversation" class="thread-actions">
         <UBadge class="member-count" color="neutral" variant="soft">
           {{ conversation.members.length }} members
         </UBadge>
@@ -184,6 +185,11 @@ watch(
     <div ref="messagesEl" class="messages">
       <div v-if="loading" class="message-skeletons">
         <USkeleton v-for="item in 4" :key="item" class="message-skeleton" />
+      </div>
+      <div v-else-if="!hasConversation" class="thread-empty-state">
+        <MessageCircle :size="28" />
+        <h2>Select a conversation</h2>
+        <p>Choose a chat from the conversation list to read messages.</p>
       </div>
       <template v-else>
         <UButton
@@ -226,6 +232,6 @@ watch(
       </UButton>
     </div>
 
-    <MessageComposer :disabled="composerDisabled" @send="emit('send', $event)" @typing="emit('typing', $event)" />
+    <MessageComposer :disabled="composerDisabled || !hasConversation" @send="emit('send', $event)" @typing="emit('typing', $event)" />
   </section>
 </template>

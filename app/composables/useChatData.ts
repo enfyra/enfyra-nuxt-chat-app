@@ -1,6 +1,7 @@
 import type { ChatListItem, ChatMessage, ChatUser, Conversation, ConversationMember, DeleteConversationScope, DraftConversation, MessageCursor } from '~/types/chat';
 
 const MESSAGE_PAGE_SIZE = 20;
+const LOAD_ALL_LIMIT = 0;
 
 export const useChatData = () => {
   const api = useEnfyraApi();
@@ -80,24 +81,18 @@ export const useChatData = () => {
         title: conversationsLoading.value ? 'Loading conversation' : 'Conversation unavailable',
       };
     }
-    return lastActiveConversation.value || emptyConversation;
+    return emptyConversation;
   });
 
-  const fetchConversationMembers = async (conversationId: string) => {
-    try {
-      const response = await api.get('/chat_conversation_member', {
-        query: {
-          filter: JSON.stringify({
-            conversation: { id: { _eq: conversationId } },
-          }),
-          deep: JSON.stringify({ member: {} }),
-          limit: 50,
-        },
-      });
-      return api.rowsOf<any>(response).map(mapMember);
-    } catch {
-      return [];
-    }
+  const clearActiveConversation = () => {
+    activeId.value = '';
+    draftConversation.value = null;
+    threadMessages.value = [];
+    hasOlderMessages.value = false;
+    olderCursor.value = null;
+    messagesLoading.value = false;
+    olderMessagesLoading.value = false;
+    lastActiveConversation.value = null;
   };
 
   const fetchUnreadConversationIds = async () => {
@@ -110,7 +105,7 @@ export const useChatData = () => {
             is_read: { _eq: false },
           }),
           fields: 'conversation',
-          limit: 500,
+          limit: LOAD_ALL_LIMIT,
         },
       });
       const rows = api.rowsOf<any>(response);
@@ -179,22 +174,6 @@ export const useChatData = () => {
     }
   };
 
-  const setConversationMembers = (conversationId: string, members: ConversationMember[]) => {
-    const normalizedId = idOf(conversationId);
-    const index = chatItems.value.findIndex((item) => sameId(item.conversation.id, normalizedId));
-    if (index < 0 || members.length === 0) return;
-    const item = chatItems.value[index];
-    if (!item) return;
-    chatItems.value[index] = {
-      ...item,
-      members: members.map((row) => row.member),
-      conversation: {
-        ...item.conversation,
-        members,
-      },
-    };
-  };
-
   const loadOlderMessages = async () => {
     const conversationId = activeId.value;
     const cursor = olderCursor.value;
@@ -246,15 +225,8 @@ export const useChatData = () => {
           filter: JSON.stringify({
             member: { id: { _eq: user.value.id } },
           }),
-          deep: JSON.stringify({
-            member: {},
-            conversation: {
-              members: {
-                member: {},
-              },
-            },
-          }),
-          limit: 100,
+          deep: JSON.stringify({ conversation: {} }),
+          limit: LOAD_ALL_LIMIT,
         },
       });
 
@@ -265,10 +237,7 @@ export const useChatData = () => {
         const conversation = membership.conversation;
         if (!conversation?.id) continue;
         const conversationId = idOf(conversation.id);
-        const mappedMembers = Array.isArray(conversation.members)
-          ? conversation.members.map((row: any) => mapMember(row))
-          : [];
-        const members = mappedMembers.length > 0 ? mappedMembers : [mapMember({ ...membership, member: user.value })];
+        const members = [mapMember({ ...membership, member: user.value })];
         const mappedConversation = mapConversation(conversation, members);
         const unreadCount = unreadConversationIds.has(conversationId) ? 1 : 0;
         mappedConversation.unreadCount = unreadCount;
@@ -282,10 +251,7 @@ export const useChatData = () => {
 
       const collapsed = new Map<string, ChatListItem>();
       for (const item of items) {
-        const peer = item.conversation.kind === 'dm'
-          ? item.members.find((member) => !sameId(member.id, user.value?.id))
-          : null;
-        const key = peer ? `dm:${peer.id}` : `conversation:${item.conversation.id}`;
+        const key = `conversation:${item.conversation.id}`;
         const existing = collapsed.get(key);
         if (existing && item.unreadCount) {
           existing.unreadCount = 1;
@@ -504,7 +470,7 @@ export const useChatData = () => {
           conversation: { id: { _eq: conversationId } },
         }),
         deep: JSON.stringify({ member: {} }),
-        limit: 50,
+        limit: LOAD_ALL_LIMIT,
       },
     });
     return api.rowsOf<any>(response);
@@ -552,11 +518,7 @@ export const useChatData = () => {
       await fetchMessages(id);
       return;
     }
-    const [members] = await Promise.all([
-      fetchConversationMembers(id),
-      fetchMessages(id),
-    ]);
-    setConversationMembers(id, members);
+    await fetchMessages(id);
   }, { immediate: true });
 
   watch([chatItems, activeId], () => {
@@ -582,6 +544,7 @@ export const useChatData = () => {
     loadOlderMessages,
     startDirectMessage,
     openConversation,
+    clearActiveConversation,
     createDraftConversation,
     createGroupChat,
     deleteConversation,

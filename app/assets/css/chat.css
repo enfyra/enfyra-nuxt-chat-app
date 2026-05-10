@@ -504,6 +504,10 @@
   transform: translateY(0);
 }
 
+.thread-title.empty h1 {
+  transform: translateY(10px);
+}
+
 .thread-status {
   display: inline-flex;
   align-items: center;
@@ -649,6 +653,29 @@
 
 .message-skeleton:nth-child(even) {
   justify-self: end;
+}
+
+.thread-empty-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 100%;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.thread-empty-state h2 {
+  margin: 4px 0 0;
+  color: var(--foreground);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.thread-empty-state p {
+  max-width: 22rem;
+  margin: 0;
+  font-size: 13px;
 }
 
 .new-message-jump {

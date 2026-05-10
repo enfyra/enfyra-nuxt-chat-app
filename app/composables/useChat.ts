@@ -180,7 +180,7 @@ export const useChat = () => {
       return;
     }
     if (data.activeId.value && !items.some((item) => sameId(item.conversation.id, data.activeId.value))) {
-      data.activeId.value = idOf(items[0]?.conversation.id);
+      data.clearActiveConversation();
     }
     socket.joinConversationRooms();
   }, { immediate: true });
@@ -195,7 +195,11 @@ export const useChat = () => {
 
   watch(() => routeConversationId(), (conversationId) => {
     if (conversationId === 'new') return;
-    if (!conversationId || sameId(conversationId, data.activeId.value)) return;
+    if (!conversationId) {
+      data.clearActiveConversation();
+      return;
+    }
+    if (sameId(conversationId, data.activeId.value)) return;
     const existing = data.chatItems.value.find((item) => sameId(item.conversation.id, conversationId));
     data.activeId.value = idOf(existing?.conversation.id || conversationId);
     data.draftConversation.value = null;
