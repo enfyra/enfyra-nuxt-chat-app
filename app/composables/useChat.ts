@@ -154,14 +154,12 @@ export const useChat = () => {
       data.activeId.value = idOf(requestedItem.conversation.id);
       data.setConversationUnread(requestedItem.conversation.id, false);
     }
-    const hasRequestedConversation = Boolean(requestedItem);
-    if (data.activeId.value !== 'draft' && !hasRequestedConversation) {
-      data.activeId.value = idOf(data.chatItems.value[0]?.conversation.id);
-    }
     syncConversationUrl(data.activeId.value);
     socket.connect();
     socket.joinConversationRooms();
-    socket.emitRead(data.activeId.value);
+    if (data.activeId.value) {
+      socket.emitRead(data.activeId.value);
+    }
   };
 
   const stop = () => {
@@ -174,7 +172,8 @@ export const useChat = () => {
       return;
     }
     if (!data.activeId.value && items[0]) {
-      data.activeId.value = idOf(items[0].conversation.id);
+      socket.joinConversationRooms();
+      return;
     }
     if (data.activeId.value === 'draft') {
       socket.joinConversationRooms();

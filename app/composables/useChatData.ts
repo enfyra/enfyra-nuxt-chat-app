@@ -80,7 +80,7 @@ export const useChatData = () => {
         title: conversationsLoading.value ? 'Loading conversation' : 'Conversation unavailable',
       };
     }
-    return chatItems.value[0]?.conversation || lastActiveConversation.value || emptyConversation;
+    return lastActiveConversation.value || emptyConversation;
   });
 
   const fetchConversationMembers = async (conversationId: string) => {
@@ -97,21 +97,6 @@ export const useChatData = () => {
       return api.rowsOf<any>(response).map(mapMember);
     } catch {
       return [];
-    }
-  };
-
-  const fetchLatestMessage = async (conversationId: string) => {
-    try {
-      const response = await api.get('/chat_message', {
-        query: {
-          filter: JSON.stringify({ conversation: { id: { _eq: conversationId } } }),
-          sort: '-createdAt,-id',
-          limit: 1,
-        },
-      });
-      return api.rowsOf<any>(response)[0] || null;
-    } catch {
-      return null;
     }
   };
 
@@ -194,6 +179,22 @@ export const useChatData = () => {
     }
   };
 
+  const setConversationMembers = (conversationId: string, members: ConversationMember[]) => {
+    const normalizedId = idOf(conversationId);
+    const index = chatItems.value.findIndex((item) => sameId(item.conversation.id, normalizedId));
+    if (index < 0 || members.length === 0) return;
+    const item = chatItems.value[index];
+    if (!item) return;
+    chatItems.value[index] = {
+      ...item,
+      members: members.map((row) => row.member),
+      conversation: {
+        ...item.conversation,
+        members,
+      },
+    };
+  };
+
   const loadOlderMessages = async () => {
     const conversationId = activeId.value;
     const cursor = olderCursor.value;
@@ -245,7 +246,14 @@ export const useChatData = () => {
           filter: JSON.stringify({
             member: { id: { _eq: user.value.id } },
           }),
-          deep: JSON.stringify({ conversation: {} }),
+          deep: JSON.stringify({
+            member: {},
+            conversation: {
+              members: {
+                member: {},
+              },
+            },
+          }),
           limit: 100,
         },
       });
@@ -257,20 +265,17 @@ export const useChatData = () => {
         const conversation = membership.conversation;
         if (!conversation?.id) continue;
         const conversationId = idOf(conversation.id);
-        const mappedMembers = await fetchConversationMembers(conversationId);
-        const latestMessage = await fetchLatestMessage(conversationId);
+        const mappedMembers = Array.isArray(conversation.members)
+          ? conversation.members.map((row: any) => mapMember(row))
+          : [];
         const members = mappedMembers.length > 0 ? mappedMembers : [mapMember({ ...membership, member: user.value })];
         const mappedConversation = mapConversation(conversation, members);
-        if (latestMessage) {
-          mappedConversation.lastMessageText = latestMessage.text || mappedConversation.lastMessageText;
-          mappedConversation.lastMessageAt = latestMessage.createdAt || mappedConversation.lastMessageAt;
-        }
         const unreadCount = unreadConversationIds.has(conversationId) ? 1 : 0;
         mappedConversation.unreadCount = unreadCount;
         items.push({
           conversation: mappedConversation,
           membership: mapMember({ ...membership, member: user.value }),
-          members: members.map((row) => row.member),
+          members: members.map((row: ConversationMember) => row.member),
           unreadCount,
         });
       }
@@ -300,9 +305,6 @@ export const useChatData = () => {
       }
 
       chatItems.value = Array.from(collapsed.values()).sort((a, b) => (b.conversation.lastMessageAt || '').localeCompare(a.conversation.lastMessageAt || ''));
-      if (!activeId.value && chatItems.value[0]) {
-        activeId.value = idOf(chatItems.value[0].conversation.id);
-      }
     } catch {
       chatItems.value = [];
     } finally {
@@ -317,7 +319,6 @@ export const useChatData = () => {
     await refreshConversations({ silent: true });
     activeId.value = normalizedId;
     draftConversation.value = null;
-    await fetchMessages(normalizedId);
   };
 
   const startDirectMessage = async (target: ChatUser) => {
@@ -547,7 +548,15 @@ export const useChatData = () => {
       messagesLoading.value = false;
       return;
     }
-    await fetchMessages(id);
+    if (!id) {
+      await fetchMessages(id);
+      return;
+    }
+    const [members] = await Promise.all([
+      fetchConversationMembers(id),
+      fetchMessages(id),
+    ]);
+    setConversationMembers(id, members);
   }, { immediate: true });
 
   watch([chatItems, activeId], () => {
