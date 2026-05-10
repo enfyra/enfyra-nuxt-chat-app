@@ -762,10 +762,10 @@ socket.on('chat:read', (payload) => {
 
     <section class="how-layout app-shell-container">
       <div class="how-hero">
-        <UBadge color="neutral" variant="soft">Nuxt + Enfyra walkthrough</UBadge>
-        <h1>How the realtime chat demo works</h1>
+        <UBadge color="neutral" variant="soft">Powered by Enfyra</UBadge>
+        <h1>How this Enfyra-powered realtime chat demo works</h1>
         <p>
-          Trace the same message from browser login, through Socket.IO emit, into Enfyra event scripts, and back to the client listeners that update the UI.
+          Trace the same message from browser login, through Socket.IO emit, into Enfyra event scripts, and back to the Nuxt client listeners that update the UI.
         </p>
       </div>
 
@@ -775,7 +775,7 @@ socket.on('chat:read', (payload) => {
             <UBadge color="neutral" variant="soft">Event map</UBadge>
             <h2>Client emit, server handler, client listener</h2>
           </div>
-          <p>Use these links as the shortest path between the Nuxt code and the Enfyra event script that handles it.</p>
+          <p>Use these links as the shortest path between the Nuxt code and the Enfyra-powered event script that handles it.</p>
         </div>
         <div class="event-map-grid">
           <div v-for="event in eventMap" :key="event.client" class="event-map-row">

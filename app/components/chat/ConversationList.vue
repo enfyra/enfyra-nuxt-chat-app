@@ -8,6 +8,7 @@ const props = defineProps<{
   loading?: boolean;
   currentUserId?: string;
   creatingChat?: boolean;
+  showCreator?: boolean;
   onlineUserIds?: ReadonlySet<string>;
 }>();
 
@@ -57,6 +58,7 @@ const filteredItems = computed(() => {
     </div>
 
     <NewConversation
+      v-if="showCreator"
       class="embedded-new-conversation"
       :current-user-id="currentUserId"
       :busy="creatingChat"

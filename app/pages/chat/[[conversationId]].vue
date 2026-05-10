@@ -91,6 +91,11 @@ const selectConversationAndClose = (conversationId: string) => {
   conversationsOpen.value = false;
 };
 
+const setConversationCreatorOpen = (open: boolean) => {
+  conversationCreatorOpen.value = open;
+  if (open) conversationsOpen.value = false;
+};
+
 onMounted(async () => {
   await start();
 });
@@ -108,15 +113,25 @@ onBeforeUnmount(() => {
         <NuxtLink class="brand" to="/chat">
           <span class="brand-mark"><MessageSquareText :size="19" /></span>
           <span>Enfyra Demo Chat</span>
+          <span class="brand-powered">Powered by Enfyra</span>
         </NuxtLink>
         <div class="header-actions">
           <UButton class="mobile-conversations-trigger" color="neutral" variant="outline" square aria-label="Open conversations" @click="conversationsOpen = true">
             <Menu :size="18" />
           </UButton>
-          <UBadge class="connection-pill" color="neutral" variant="soft">
+          <NewConversation
+            class="header-new-conversation"
+            :current-user-id="user?.id"
+            :busy="creatingChat"
+            compact
+            @start-dm="startDirectMessage"
+            @create-group="createGroupChat"
+            @modal-open-change="setConversationCreatorOpen"
+          />
+          <UButton class="connection-pill" color="neutral" variant="outline" tabindex="-1">
             <span class="status-dot" />
             Realtime · {{ socketState }}<template v-if="socketState === 'connecting' && reconnectAttempt"> · retry {{ reconnectAttempt }}/{{ reconnectLimit }}</template>
-          </UBadge>
+          </UButton>
           <UButton to="/how-it-works" color="neutral" variant="outline" class="docs-link">
             <ShieldCheck :size="17" />
             How it works
@@ -147,10 +162,12 @@ onBeforeUnmount(() => {
           :loading="listLoading"
           :current-user-id="user?.id"
           :creating-chat="creatingChat"
+          show-creator
           :online-user-ids="onlineUserIds"
           @select="selectConversation"
           @start-dm="startDirectMessage"
           @create-group="createGroupChat"
+          @modal-open-change="setConversationCreatorOpen"
         />
       </div>
       <MessageThread
@@ -184,12 +201,8 @@ onBeforeUnmount(() => {
           :active-id="activeId"
           :loading="listLoading"
           :current-user-id="user?.id"
-          :creating-chat="creatingChat"
           :online-user-ids="onlineUserIds"
           @select="selectConversationAndClose"
-          @start-dm="startDirectMessage"
-          @create-group="createGroupChat"
-          @modal-open-change="conversationCreatorOpen = $event"
         />
       </template>
     </UDrawer>

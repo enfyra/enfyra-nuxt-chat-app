@@ -1,5 +1,9 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-const enfyraAppUrl = 'https://demo.enfyra.io';
+const enfyraAppUrl = (
+  process.env.NUXT_PUBLIC_ENFYRA_APP_URL ||
+  process.env.ENFYRA_APP_URL ||
+  'https://demo.enfyra.io'
+).replace(/\/+$/, '');
 const enfyraApiUrl = `${enfyraAppUrl}/api`;
 
 export default defineNuxtConfig({

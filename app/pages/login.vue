@@ -24,6 +24,7 @@ const login = async () => {
       <NuxtLink to="/chat" class="brand">
         <span class="brand-mark"><MessageSquareText :size="19" /></span>
         <span>Enfyra Chat</span>
+        <span class="brand-powered">Powered by Enfyra</span>
       </NuxtLink>
       <ThemeToggle />
     </header>
@@ -32,9 +33,9 @@ const login = async () => {
       <UCard class="login-form">
         <form class="login-form-inner" @submit.prevent="login">
           <div>
-            <UBadge color="neutral" variant="soft">Demo chat app</UBadge>
+            <UBadge color="neutral" variant="soft">Powered by Enfyra</UBadge>
             <h1>Sign in to Enfyra Chat</h1>
-            <p class="muted">Use the demo account or continue with Google.</p>
+            <p class="muted">Use the demo account or continue with Google to try a third-party app powered by Enfyra auth, REST, and realtime.</p>
           </div>
           <UFormField label="Email">
             <UInput v-model="email" autocomplete="email" size="xl" class="login-field" />
@@ -53,7 +54,7 @@ const login = async () => {
           <UAlert v-if="errorMessage" color="error" variant="soft" :title="errorMessage" />
           <div class="login-note">
             <Network :size="16" />
-            <span>Use the same Enfyra session from server-rendered pages, browser fetches, and the realtime socket.</span>
+            <span>Enfyra powers the session, data API, and realtime socket behind this Nuxt chat app.</span>
           </div>
         </form>
       </UCard>

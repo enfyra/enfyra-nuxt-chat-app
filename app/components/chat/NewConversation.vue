@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { MessageCircle, Search, UserPlus, UsersRound, X } from 'lucide-vue-next';
+import { MessageCircle, MessageSquarePlus, Search, UserPlus, UsersRound, X } from 'lucide-vue-next';
 import type { ChatUser } from '~/types/chat';
 
 const props = defineProps<{
   currentUserId?: string;
   busy?: boolean;
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +33,20 @@ const mapUser = (value: any): ChatUser => ({
 });
 
 const canCreateGroup = computed(() => selected.value.length >= 2 && !props.busy);
+const compactItems = computed(() => [
+  {
+    label: 'Direct message',
+    icon: 'i-lucide-message-circle',
+    disabled: props.busy,
+    onSelect: openDm,
+  },
+  {
+    label: 'Group chat',
+    icon: 'i-lucide-users-round',
+    disabled: props.busy,
+    onSelect: openGroup,
+  },
+]);
 const modalOpen = computed({
   get: () => dmOpen.value || groupOpen.value,
   set: (value) => {
@@ -140,8 +155,25 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="new-conversation">
-    <div class="new-heading">
+  <div class="new-conversation" :class="{ 'new-conversation-compact': compact }">
+    <UDropdownMenu
+      v-if="compact"
+      :items="compactItems"
+      :content="{ align: 'end', sideOffset: 8 }"
+    >
+      <UButton
+        color="neutral"
+        variant="outline"
+        square
+        :disabled="busy"
+        aria-label="New conversation"
+        title="New conversation"
+        @click="pickerOpen = !pickerOpen"
+      >
+        <MessageSquarePlus :size="18" />
+      </UButton>
+    </UDropdownMenu>
+    <div v-else class="new-heading">
       <span>New conversation</span>
       <div class="quick-actions">
         <UButton color="neutral" variant="soft" size="xs" :disabled="busy" @click="openDm">
