@@ -188,12 +188,14 @@ for (const membership of memberships.data || []) {
   {
     id: 'flow-send-message',
     icon: 'i-lucide-send',
-    title: '5. Sending a message is emit -> server handler -> broadcast/reply',
-    text: 'The composer emits chat:message. Enfyra checks membership, broadcasts the message to conversation:<id>, persists it directly in chat_message, and replies to the sender with chat:message:sent.',
+    title: '5. Sending a message is emit -> persist -> broadcast/reply',
+    text: 'The composer emits chat:message. Enfyra checks membership, writes chat_message and read receipts, points chat_conversation.lastMessage to the persisted row, then broadcasts to conversation:<id> and replies with chat:message:sent.',
     code: `// Nuxt emits
 socket.emit('chat:message', { conversationId, messageId, text })
 
 // Enfyra handles
+const created = await @REPOS.chat_message.create({ data: messageData })
+await @REPOS.chat_conversation.update({ id: conversationId, data: { lastMessage: { id: created.data[0].id } } })
 @SOCKET.broadcastToRoom('conversation:' + conversationId, 'chat:message', message)
 @SOCKET.reply('chat:message:sent', message)`,
     links: [
@@ -294,11 +296,11 @@ Computed token bridge
     id: 'enfyra-schema',
     icon: 'i-lucide-database',
     title: 'Create chat tables and indexes',
-    text: 'Conversation membership is the visibility boundary. Read receipts are separate rows so unread can be queried with member + isRead indexes. Messages use a conversation + createdAt + id index for cursor pagination.',
+    text: 'Conversation membership is the visibility boundary. Read receipts are separate rows so unread can be queried with member + isRead indexes. Messages use a conversation + createdAt + id index for cursor pagination. The conversation list reads the latest preview through lastMessage, and DELETE /chat_message hooks repair that relation when the latest message is removed.',
     code: `chat_conversation
   kind, title, description
-  lastMessageText, lastMessageAt
   createdBy -> user_definition
+  lastMessage -> chat_message
 
 chat_conversation_member
   conversation -> chat_conversation
@@ -377,15 +379,19 @@ for (const row of memberships.data || []) {
     id: 'enfyra-message',
     icon: 'i-lucide-message-square-text',
     title: 'Handle chat:message',
-    text: 'The handler verifies membership, broadcasts delivery to the room, writes chat_message with read receipts, then replies to the sender. Persistence is fire-and-forget so realtime delivery is not blocked by DB writes.',
+    text: 'The handler verifies membership, writes chat_message with read receipts, stores the persisted message as chat_conversation.lastMessage, then broadcasts and replies. Clients still render optimistically, but other clients only receive messages that have been persisted.',
     code: `const message = { id: messageId, conversationId, senderId, text, createdAt };
 
-@SOCKET.broadcastToRoom('conversation:' + conversationId, 'chat:message', message);
-
-@REPOS.chat_message.create({
+const created = await @REPOS.chat_message.create({
   data: { text, conversation: { id: conversationId }, sender: { id: senderId }, readReceipts },
-}).catch(() => null);
+});
 
+await @REPOS.chat_conversation.update({
+  id: conversationId,
+  data: { lastMessage: { id: created.data[0].id }, updatedAt: created.data[0].createdAt },
+});
+
+@SOCKET.broadcastToRoom('conversation:' + conversationId, 'chat:message', message);
 @SOCKET.reply('chat:message:sent', message);`,
     links: [
       { label: 'Client emit', tab: 'nuxt', target: 'nuxt-emit-message' },

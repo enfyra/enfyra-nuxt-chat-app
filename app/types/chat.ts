@@ -20,6 +20,7 @@ export interface Conversation {
   title: string;
   description?: string;
   members: ConversationMember[];
+  lastMessage?: ChatMessage | null;
   lastMessageText?: string;
   lastMessageAt?: string;
   unreadCount: number;

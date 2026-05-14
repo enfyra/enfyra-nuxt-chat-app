@@ -377,13 +377,14 @@ const ensureUser = async (data) => {
 const ensureConversation = async (data) => {
   const rows = await query('chat_conversation', { title: { _eq: data.title } }, { limit: 1 });
   if (rows[0]) {
-    await updateRecord('chat_conversation', rows[0].id, {
+    const update = {
       kind: data.kind,
       description: data.description,
-      last_message_text: data.last_message_text,
-      last_message_at: data.last_message_at,
-      updated_at: data.updated_at,
-    });
+    };
+    if (data.lastMessageId) {
+      update.lastMessage = { id: data.lastMessageId };
+    }
+    await updateRecord('chat_conversation', rows[0].id, update);
     return rows[0];
   }
   return createRecord('chat_conversation', data);
@@ -398,7 +399,7 @@ const ensureMembership = async ({ conversationId, userId, role, joinedAt }) => {
   if (rows[0]) return rows[0];
   return createRecord('chat_conversation_member', {
     role,
-    joined_at: joinedAt,
+    joinedAt: joinedAt,
     conversation: { id: conversationId },
     member: { id: userId },
   });
@@ -414,7 +415,7 @@ const ensureMessage = async ({ text, conversationId, senderId }) => {
   if (rows[0]) return rows[0];
   return createRecord('chat_message', {
     text,
-    persist_status: 'persisted',
+    persistStatus: 'persisted',
     conversation: { id: conversationId },
     sender: { id: senderId },
   });
@@ -428,13 +429,13 @@ const ensureReadReceipt = async ({ messageId, conversationId, memberId, isRead, 
   }, { limit: 1 });
   if (rows[0]) {
     return updateRecord('chat_message_read', rows[0].id, {
-      is_read: isRead,
-      read_at: readAt || null,
+      isRead: isRead,
+      readAt: readAt || null,
     });
   }
   return createRecord('chat_message_read', {
-    is_read: isRead,
-    read_at: readAt || null,
+    isRead: isRead,
+    readAt: readAt || null,
     message: { id: messageId },
     conversation: { id: conversationId },
     member: { id: memberId },
@@ -539,6 +540,68 @@ if (!currentMembership.data?.length) @THROW403('Not a conversation member');
 @BODY.conversation = { id: conversationId };
 `;
 
+const messageDeleteSnapshotSource = () => `
+const userId = @USER?.id;
+const messageId = @PARAMS?.id;
+if (!userId) @THROW401('Unauthorized');
+if (!messageId) @THROW400('message id is required');
+const messageResult = await @REPOS.chat_message.find({
+  filter: { id: { _eq: messageId } },
+  deep: {},
+  fields: 'id,createdAt,conversation',
+  limit: 1,
+});
+const message = messageResult.data?.[0];
+if (!message?.id) return;
+const conversationId = message.conversation?.id || message.conversation;
+if (!conversationId) return;
+const conversationResult = await @REPOS.chat_conversation.find({
+  filter: { id: { _eq: conversationId } },
+  deep: {},
+  fields: 'id,lastMessage',
+  limit: 1,
+});
+const conversation = conversationResult.data?.[0];
+const currentLastId = conversation?.lastMessage?.id || conversation?.lastMessage;
+const membershipResult = await @REPOS.chat_conversation_member.find({
+  filter: {
+    conversation: { id: { _eq: conversationId } },
+    member: { id: { _eq: userId } },
+  },
+  deep: {},
+  fields: 'id',
+  limit: 1,
+});
+if (!membershipResult.data?.length) @THROW403('Not a conversation member');
+@SHARE.deletedChatMessage = {
+  id: message.id,
+  conversationId,
+  createdAt: message.createdAt,
+  wasLastMessage: String(currentLastId || '') === String(message.id),
+};
+`;
+
+const messageDeleteLastMessageRepairSource = () => `
+const deleted = @SHARE?.deletedChatMessage;
+if (!deleted?.conversationId || !deleted?.id) return;
+if (!deleted.wasLastMessage) return;
+const nextLastResult = await @REPOS.chat_message.find({
+  filter: { conversation: { id: { _eq: deleted.conversationId } } },
+  deep: {},
+  fields: 'id',
+  sort: '-createdAt,-id',
+  limit: 1,
+});
+const nextLast = nextLastResult.data?.[0];
+await @REPOS.chat_conversation.update({
+  id: deleted.conversationId,
+  data: {
+    lastMessage: nextLast?.id ? { id: nextLast.id } : null,
+    updatedAt: new Date().toISOString(),
+  },
+});
+`;
+
 const conversationTitleResponseSource = () => `
 const currentUserId = @USER?.id;
 const rows = Array.isArray(@DATA?.data) ? @DATA.data : [];
@@ -594,10 +657,6 @@ const setup = async () => {
       { name: 'kind', type: 'varchar', isNullable: false },
       { name: 'title', type: 'varchar', isNullable: true },
       { name: 'description', type: 'text', isNullable: true },
-      { name: 'last_message_text', type: 'text', isNullable: true },
-      { name: 'last_message_at', type: 'date', isNullable: true },
-      { name: 'created_at', type: 'date', isNullable: true },
-      { name: 'updated_at', type: 'date', isNullable: true },
     ],
     relations: [
       { targetTable: freshUserTable.id, type: 'many-to-one', propertyName: 'createdBy', isNullable: true, onDelete: 'CASCADE' },
@@ -609,9 +668,7 @@ const setup = async () => {
     description: 'Demo chat membership rows used for RLS-style filtering.',
     columns: [
       { name: 'role', type: 'varchar', isNullable: false },
-      { name: 'last_read_at', type: 'date', isNullable: true },
-      { name: 'muted_until', type: 'date', isNullable: true },
-      { name: 'joined_at', type: 'date', isNullable: true },
+      { name: 'joinedAt', type: 'date', isNullable: true },
     ],
     relations: [
       { targetTable: conversation.id, type: 'many-to-one', propertyName: 'conversation', inversePropertyName: 'memberships', isNullable: false, onDelete: 'CASCADE' },
@@ -625,7 +682,7 @@ const setup = async () => {
     description: 'Demo chat messages persisted by websocket-triggered flow.',
     columns: [
       { name: 'text', type: 'text', isNullable: false },
-      { name: 'persist_status', type: 'varchar', isNullable: true },
+      { name: 'persistStatus', type: 'varchar', isNullable: true },
     ],
     relations: [
       { targetTable: conversation.id, type: 'many-to-one', propertyName: 'conversation', inversePropertyName: 'messages', isNullable: false, onDelete: 'CASCADE' },
@@ -635,13 +692,19 @@ const setup = async () => {
       ['conversation', 'createdAt', 'id'],
     ],
   });
+  await updateTableRelations(conversation, [
+    { targetTable: freshUserTable.id, type: 'many-to-one', propertyName: 'createdBy', isNullable: true, onDelete: 'CASCADE' },
+    { targetTable: message.id, type: 'many-to-one', propertyName: 'lastMessage', isNullable: true, onDelete: 'SET NULL' },
+  ]);
+  await deleteTableColumnIfExists('chat_conversation', 'lastMessageText');
+  await deleteTableColumnIfExists('chat_conversation', 'lastMessageAt');
 
   const readReceipt = await createTableIfMissing({
     name: 'chat_message_read',
     description: 'Per-user read state for demo chat messages.',
     columns: [
-      { name: 'is_read', type: 'boolean', isNullable: false },
-      { name: 'read_at', type: 'date', isNullable: true },
+      { name: 'isRead', type: 'boolean', isNullable: false },
+      { name: 'readAt', type: 'date', isNullable: true },
     ],
     relations: [
       { targetTable: message.id, type: 'many-to-one', propertyName: 'message', inversePropertyName: 'readReceipts', isNullable: false, onDelete: 'CASCADE' },
@@ -649,9 +712,9 @@ const setup = async () => {
       { targetTable: freshUserTable.id, type: 'many-to-one', propertyName: 'member', isNullable: false, onDelete: 'CASCADE' },
     ],
     indexes: [
-      ['member', 'is_read', 'conversation'],
-      ['member', 'is_read', 'id'],
-      ['conversation', 'member', 'is_read'],
+      ['member', 'isRead', 'conversation'],
+      ['member', 'isRead', 'id'],
+      ['conversation', 'member', 'isRead'],
     ],
     uniques: [
       ['message', 'member'],
@@ -699,7 +762,7 @@ const setup = async () => {
   await ensureRoutePermission({
     routePath: '/chat_message',
     roleId: userRole.id,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE'],
     description: 'Allow chat users to use messages scoped by hooks.',
   });
   await ensureRoutePermission({
@@ -749,6 +812,14 @@ const setup = async () => {
     priority: 0,
     sourceCode: messageWriteScopeSource(),
   });
+  await ensurePreHook({
+    name: 'Demo chat message delete RLS',
+    routePath: '/chat_message',
+    methods: ['DELETE'],
+    description: 'Restrict message deletes to conversations containing @USER and snapshot deleted rows.',
+    priority: 0,
+    sourceCode: messageDeleteSnapshotSource(),
+  });
   await ensurePostHook({
     name: 'Demo chat conversation display title',
     routePath: '/chat_conversation',
@@ -765,24 +836,26 @@ const setup = async () => {
     priority: 0,
     sourceCode: conversationTitleResponseSource(),
   });
+  await ensurePostHook({
+    name: 'Demo chat message delete last message repair',
+    routePath: '/chat_message',
+    methods: ['DELETE'],
+    description: 'Repair chat_conversation.lastMessage when deleting the latest message.',
+    priority: 0,
+    sourceCode: messageDeleteLastMessageRepairSource(),
+  });
 
   const dm = await ensureConversation({
     kind: 'dm',
     title: 'Mai Tran',
-    last_message_text: 'This message is persisted in PostgreSQL through Enfyra.',
-    last_message_at: now,
-    created_at: now,
-    updated_at: now,
+    updatedAt: now,
     createdBy: { id: me.id },
   });
   const group = await ensureConversation({
     kind: 'group',
     title: 'Runtime Chat Demo',
     description: 'Socket, flow, and PostgreSQL persistence demo',
-    last_message_text: 'Delivery first, direct websocket persistence after.',
-    last_message_at: now,
-    created_at: now,
-    updated_at: now,
+    updatedAt: now,
     createdBy: { id: me.id },
   });
 
@@ -793,7 +866,9 @@ const setup = async () => {
     await ensureMembership({ conversationId: group.id, userId: item.id, role: item.id === me.id ? 'owner' : 'member', joinedAt: now });
   }
   const seedDmMessage = await ensureMessage({ text: 'This message is persisted in PostgreSQL through Enfyra.', conversationId: dm.id, senderId: users[1].id });
-  const seedGroupMessage = await ensureMessage({ text: 'Delivery first, direct websocket persistence after.', conversationId: group.id, senderId: users[2].id });
+  const seedGroupMessage = await ensureMessage({ text: 'Persist first, then realtime fanout.', conversationId: group.id, senderId: users[2].id });
+  if (seedDmMessage?.id) await updateRecord('chat_conversation', dm.id, { lastMessage: { id: seedDmMessage.id }, updatedAt: seedDmMessage.createdAt || now });
+  if (seedGroupMessage?.id) await updateRecord('chat_conversation', group.id, { lastMessage: { id: seedGroupMessage.id }, updatedAt: seedGroupMessage.createdAt || now });
   for (const item of [me, users[1]]) {
     await ensureReadReceipt({
       messageId: seedDmMessage?.id,
@@ -925,7 +1000,7 @@ const unreadRows = await @REPOS.chat_message_read.find({
   filter: {
     conversation: { id: { _eq: @BODY.conversationId } },
     member: { id: { _eq: @USER.id } },
-    is_read: { _eq: false },
+    isRead: { _eq: false },
   },
   deep: {},
   fields: 'id',
@@ -935,8 +1010,8 @@ await Promise.all((unreadRows.data || []).map((row) =>
   @REPOS.chat_message_read.update({
     id: row.id,
     data: {
-      is_read: true,
-      read_at: readAt,
+      isRead: true,
+      readAt: readAt,
     },
   })
 ));
@@ -969,23 +1044,10 @@ return { ok: true, readAt };
 const text = (@BODY.text || '').trim();
 if (!text) @THROW400('text is required');
 const createdAt = new Date().toISOString();
-const messageId = @BODY.messageId || ('rt_' + createdAt + '_' + @USER.id + '_' + Math.random().toString(36).slice(2));
-const message = {
-  id: messageId,
-  conversationId: @BODY.conversationId,
-  senderId: @USER.id,
-  sender: {
-    id: @USER.id,
-    email: @USER.email,
-    displayName: @USER.displayName || @USER.email,
-    avatarUrl: @USER.avatarUrl || null,
-  },
-  text,
-  createdAt,
-  status: 'delivered',
-};
+const clientMessageId = @BODY.messageId || ('rt_' + createdAt + '_' + @USER.id + '_' + Math.random().toString(36).slice(2));
+const targetConversationId = @BODY.conversationId;
 const recipients = await @REPOS.chat_conversation_member.find({
-  filter: { conversation: { id: { _eq: message.conversationId } } },
+  filter: { conversation: { id: { _eq: targetConversationId } } },
   deep: {},
   fields: 'member',
   limit: 50,
@@ -994,32 +1056,64 @@ const readReceipts = (recipients.data || [])
   .map((row) => row.member?.id || row.member)
   .filter(Boolean)
   .map((memberId) => {
-    const isSender = memberId === message.senderId;
+    const isSender = memberId === @USER.id;
     return {
-      is_read: isSender,
-      read_at: isSender ? createdAt : null,
-      conversation: { id: message.conversationId },
+      isRead: isSender,
+      readAt: isSender ? createdAt : null,
+      conversation: { id: targetConversationId },
       member: { id: memberId },
     };
   });
-@SOCKET.broadcastToRoom('conversation:' + message.conversationId, 'chat:message', message);
-@REPOS.chat_message.create({
+const messageResult = await @REPOS.chat_message.create({
   data: {
     text,
-    persist_status: 'persisted',
-    conversation: { id: message.conversationId },
-    sender: { id: message.senderId },
+    persistStatus: 'persisted',
+    conversation: { id: targetConversationId },
+    sender: { id: @USER.id },
     readReceipts,
   },
-}).catch(() => null);
-@REPOS.chat_conversation.update({
-  id: message.conversationId,
-  data: {
-    last_message_text: text,
-    last_message_at: createdAt,
-    updated_at: createdAt,
+});
+const persisted = messageResult.data?.[0] || {};
+const message = {
+  id: persisted.id || clientMessageId,
+  clientMessageId,
+  conversationId: targetConversationId,
+  senderId: @USER.id,
+  sender: {
+    id: @USER.id,
+    email: @USER.email,
+    displayName: @USER.displayName || @USER.email,
+    avatarUrl: @USER.avatarUrl || null,
   },
-}).catch(() => null);
+  text: persisted.text || text,
+  createdAt: persisted.createdAt || createdAt,
+  status: 'delivered',
+};
+await @REPOS.chat_conversation.update({
+  id: targetConversationId,
+  data: {
+    lastMessage: { id: message.id },
+    updatedAt: message.createdAt,
+  },
+});
+const latestResult = await @REPOS.chat_message.find({
+  filter: { conversation: { id: { _eq: targetConversationId } } },
+  deep: {},
+  fields: 'id,createdAt',
+  sort: '-createdAt,-id',
+  limit: 1,
+});
+const latest = latestResult.data?.[0];
+if (latest?.id && String(latest.id) !== String(message.id)) {
+  await @REPOS.chat_conversation.update({
+    id: targetConversationId,
+    data: {
+      lastMessage: { id: latest.id },
+      updatedAt: latest.createdAt || message.createdAt,
+    },
+  });
+}
+@SOCKET.broadcastToRoom('conversation:' + message.conversationId, 'chat:message', message);
 @SOCKET.reply('chat:message:sent', message);
 `,
       dataShape: [
@@ -1103,10 +1197,7 @@ const conversationResult = await @REPOS.chat_conversation.create({
     kind,
     title,
     description: null,
-    last_message_text: text || null,
-    last_message_at: text ? createdAt : null,
-    created_at: createdAt,
-    updated_at: createdAt,
+    updatedAt: createdAt,
     createdBy: { id: ownerId },
   },
 });
@@ -1117,7 +1208,7 @@ await Promise.all(memberIds.map((memberId) =>
   @REPOS.chat_conversation_member.create({
     data: {
       role: memberId === ownerId ? 'owner' : 'member',
-      joined_at: createdAt,
+      joinedAt: createdAt,
       conversation: { id: conversationId },
       member: { id: memberId },
     },
@@ -1125,9 +1216,28 @@ await Promise.all(memberIds.map((memberId) =>
 ));
 @SOCKET.join('conversation:' + conversationId);
 if (text) {
-  const messageId = @BODY.messageId || ('rt_' + createdAt + '_' + ownerId + '_' + Math.random().toString(36).slice(2));
+  const clientMessageId = @BODY.messageId || ('rt_' + createdAt + '_' + ownerId + '_' + Math.random().toString(36).slice(2));
+  const messageResult = await @REPOS.chat_message.create({
+    data: {
+      text,
+      persistStatus: 'persisted',
+      conversation: { id: conversationId },
+      sender: { id: ownerId },
+      readReceipts: memberIds.map((memberId) => {
+        const isSender = memberId === ownerId;
+        return {
+          isRead: isSender,
+          readAt: isSender ? createdAt : null,
+          conversation: { id: conversationId },
+          member: { id: memberId },
+        };
+      }),
+    },
+  });
+  const persisted = messageResult.data?.[0] || {};
   const message = {
-    id: messageId,
+    id: persisted.id || clientMessageId,
+    clientMessageId,
     conversationId,
     senderId: ownerId,
     sender: {
@@ -1136,27 +1246,17 @@ if (text) {
       displayName: @USER.displayName || @USER.email,
       avatarUrl: @USER.avatarUrl || null,
     },
-    text,
-    createdAt,
+    text: persisted.text || text,
+    createdAt: persisted.createdAt || createdAt,
     status: 'delivered',
   };
-  @REPOS.chat_message.create({
+  await @REPOS.chat_conversation.update({
+    id: conversationId,
     data: {
-      text,
-      persist_status: 'persisted',
-      conversation: { id: conversationId },
-      sender: { id: ownerId },
-      readReceipts: memberIds.map((memberId) => {
-        const isSender = memberId === ownerId;
-        return {
-          is_read: isSender,
-          read_at: isSender ? createdAt : null,
-          conversation: { id: conversationId },
-          member: { id: memberId },
-        };
-      }),
+      lastMessage: { id: message.id },
+      updatedAt: message.createdAt,
     },
-  }).catch(() => null);
+  });
   @SOCKET.reply('chat:message:sent', message);
 }
 const payload = { requestId: @BODY.requestId, conversationId, kind };

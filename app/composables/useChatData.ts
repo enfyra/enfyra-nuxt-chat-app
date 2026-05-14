@@ -46,16 +46,23 @@ export const useChatData = () => {
     lastReadAt: membership?.lastReadAt || null,
   });
 
-  const mapConversation = (conversation: any, members: ConversationMember[] = []): Conversation => ({
-    id: idOf(conversation?.id),
-    kind: conversation?.kind === 'group' ? 'group' : 'dm',
-    title: conversation?.title || 'Untitled chat',
-    description: conversation?.description || null,
-    members,
-    lastMessageText: conversation?.lastMessageText || null,
-    lastMessageAt: conversation?.lastMessageAt || conversation?.updatedAt || null,
-    unreadCount: 0,
-  });
+  const mapConversation = (conversation: any, members: ConversationMember[] = []): Conversation => {
+    const conversationId = idOf(conversation?.id);
+    const lastMessage = conversation?.lastMessage?.id
+      ? mapMessage(conversation.lastMessage, conversationId)
+      : null;
+    return {
+      id: conversationId,
+      kind: conversation?.kind === 'group' ? 'group' : 'dm',
+      title: conversation?.title || 'Untitled chat',
+      description: conversation?.description || null,
+      members,
+      lastMessage,
+      lastMessageText: lastMessage?.text || null,
+      lastMessageAt: lastMessage?.createdAt || null,
+      unreadCount: 0,
+    };
+  };
 
   const activeConversation = computed(() => {
     if (draftConversation.value && activeId.value === 'draft') {
@@ -222,7 +229,7 @@ export const useChatData = () => {
     try {
       const response = await api.get('/chat_conversation', {
         query: {
-          sort: '-lastMessageAt,-updatedAt,-id',
+          fields: 'id,kind,title,description,updatedAt,lastMessage.id,lastMessage.text,lastMessage.createdAt,lastMessage.persistStatus,lastMessage.sender.id,lastMessage.sender.email,lastMessage.sender.displayName,lastMessage.sender.avatarUrl,lastMessage.sender.statusText',
           limit: LOAD_ALL_LIMIT,
         },
       });
@@ -305,14 +312,10 @@ export const useChatData = () => {
     const target = draftConversation.value.target;
     creatingChat.value = true;
     try {
-      const now = new Date().toISOString();
       const response = await api.post('/chat_conversation', {
         kind: 'dm',
         title: target.displayName,
         description: null,
-        lastMessageText: null,
-        lastMessageAt: null,
-        updatedAt: now,
         createdBy: { id: user.value.id },
       });
       const conversation = api.firstRowOf<any>(response);
@@ -339,14 +342,10 @@ export const useChatData = () => {
 
     creatingChat.value = true;
     try {
-      const now = new Date().toISOString();
       const response = await api.post('/chat_conversation', {
         kind: 'group',
         title,
         description: null,
-        lastMessageText: null,
-        lastMessageAt: null,
-        updatedAt: now,
         createdBy: { id: user.value.id },
       });
       const conversation = api.firstRowOf<any>(response);
@@ -438,18 +437,21 @@ export const useChatData = () => {
 
   const persistMessageFallback = async (text: string, optimistic: ChatMessage) => {
     try {
-      await api.post('/chat_message', {
+      const response = await api.post('/chat_message', {
         text,
         persistStatus: 'persisted',
         conversation: { id: activeId.value },
         sender: { id: user.value?.id },
       });
+      const persisted = api.firstRowOf<any>(response);
+      const persistedId = idOf(persisted?.id || optimistic.id);
+      const persistedAt = persisted?.createdAt || optimistic.createdAt;
       await api.patch(`/chat_conversation/${activeId.value}`, {
-        lastMessageText: text,
-        lastMessageAt: optimistic.createdAt,
-        updatedAt: optimistic.createdAt,
+        lastMessage: { id: persistedId },
+        updatedAt: persistedAt,
       });
-      upsertMessage({ ...optimistic, status: 'persisted' });
+      touchConversationPreview(activeId.value, text, persistedAt);
+      upsertMessage({ ...optimistic, id: persistedId, createdAt: persistedAt, status: 'persisted' });
       await refreshConversations();
     } catch {
       upsertMessage({ ...optimistic, status: 'failed' });
