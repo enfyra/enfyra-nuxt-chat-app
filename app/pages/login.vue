@@ -113,8 +113,10 @@ const login = async () => {
   width: min(860px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
   height: fit-content;
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-  backdrop-filter: blur(18px);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(16px);
   overflow: hidden;
 }
 
@@ -133,8 +135,8 @@ const login = async () => {
   padding: 34px;
   border-right: 1px solid var(--border);
   background:
-    linear-gradient(135deg, color-mix(in srgb, #16a34a 16%, transparent), transparent 58%),
-    color-mix(in srgb, var(--muted) 22%, transparent);
+    radial-gradient(circle at 24% 12%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 15rem),
+    var(--surface-elevated);
 }
 
 .login-copy {
@@ -172,7 +174,7 @@ const login = async () => {
   min-height: 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--background) 32%, transparent);
+  background: var(--muted);
   color: var(--accent-strong);
   padding: 0 12px;
   font-size: 13px;
@@ -217,15 +219,15 @@ const login = async () => {
 
 .login-field :deep(input) {
   min-height: 42px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 86%, #22c55e 14%);
-  background: color-mix(in srgb, var(--muted) 82%, var(--background) 18%);
+  border: 1px solid var(--border);
+  background: var(--muted);
   color: var(--foreground);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 }
 
 .login-field :deep(input:focus) {
-  border-color: color-mix(in srgb, #22c55e 72%, var(--border-strong));
-  box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .login-action-button {
@@ -234,11 +236,20 @@ const login = async () => {
 }
 
 .login-primary-action {
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .google-button {
+  border: 1px solid var(--border);
+  background: var(--muted);
   color: var(--foreground);
+}
+
+.google-button:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--muted));
 }
 
 .login-note {
@@ -246,7 +257,7 @@ const login = async () => {
   gap: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--docs-bg-subtle);
+  background: var(--muted);
   color: var(--muted-foreground);
   padding: 10px;
   font-size: 12px;

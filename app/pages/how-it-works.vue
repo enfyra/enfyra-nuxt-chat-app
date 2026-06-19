@@ -285,9 +285,9 @@ Computed token bridge
   {
     id: 'enfyra-users',
     icon: 'i-lucide-users-round',
-    title: 'Use user_definition as chat users',
-    text: 'The demo uses Enfyra users directly. Display fields live on user_definition so auth, membership, and profile display all point to the same identity.',
-    code: `user_definition
+    title: 'Use enfyra_user as chat users',
+    text: 'The demo uses Enfyra users directly. Display fields live on enfyra_user so auth, membership, and profile display all point to the same identity.',
+    code: `enfyra_user
   displayName
   avatarUrl
   statusText`,
@@ -299,24 +299,24 @@ Computed token bridge
     text: 'Conversation membership is the visibility boundary. Read receipts are separate rows so unread can be queried with member + isRead indexes. Messages use a conversation + createdAt + id index for cursor pagination. The conversation list reads the latest preview through lastMessage, and DELETE /chat_message hooks repair that relation when the latest message is removed.',
     code: `chat_conversation
   kind, title, description
-  createdBy -> user_definition
+  createdBy -> enfyra_user
   lastMessage -> chat_message
 
 chat_conversation_member
   conversation -> chat_conversation
-  member -> user_definition
+  member -> enfyra_user
   index: member, id
   index: conversation, id
 
 chat_message
   conversation -> chat_conversation
-  sender -> user_definition
+  sender -> enfyra_user
   index: conversation, createdAt, id
 
 chat_message_read
   message -> chat_message
   conversation -> chat_conversation
-  member -> user_definition
+  member -> enfyra_user
   index: member, isRead, id
   index: conversation, member, isRead`,
   },

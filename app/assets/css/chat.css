@@ -176,15 +176,32 @@
   position: relative;
   z-index: 1;
   display: grid;
+  box-sizing: border-box;
   grid-template-columns: 360px minmax(0, 1fr);
   gap: 14px;
   width: min(calc(100vw - 32px), 90rem);
   max-width: 90rem;
-  margin: 0 auto;
-  height: calc(100% - 12px);
+  margin: 12px auto;
+  height: calc(100% - 24px);
   min-height: 0;
-  padding: 0 0 12px;
+  padding: 0;
+  background: transparent;
   overflow: clip;
+}
+
+.chat-shell .conversation-list,
+.chat-shell .thread {
+  border-color: var(--chat-panel-border, var(--border));
+  background-clip: padding-box;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.chat-shell .list-header,
+.chat-shell .thread-header,
+.chat-shell .composer,
+.chat-shell .rls-banner {
+  border-color: var(--chat-panel-border, var(--border));
 }
 
 .desktop-conversation-list {
@@ -249,9 +266,10 @@
   .chat-shell {
     grid-template-columns: 1fr;
     width: calc(100vw - 20px);
-    height: 100%;
+    height: calc(100% - 16px);
     min-height: 0;
-    padding: 8px 0;
+    margin: 8px auto;
+    padding: 0;
   }
 
   .disconnect-banner {
@@ -1189,6 +1207,132 @@
 
 .empty-state {
   margin: 0;
+}
+
+.conversation-modal-overlay {
+  background: color-mix(in srgb, #000 46%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.conversation-modal-content {
+  width: min(30rem, calc(100vw - 32px));
+}
+
+.conversation-dialog {
+  gap: 12px;
+  border: 1px solid var(--chat-panel-border, var(--border));
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 18px;
+  box-shadow: 0 22px 60px color-mix(in srgb, #000 18%, transparent);
+}
+
+.conversation-dialog .p-4,
+.conversation-dialog .sm\:p-6 {
+  padding: 0;
+}
+
+.dialog-header {
+  align-items: flex-start;
+  border-bottom: 0;
+  padding: 0;
+}
+
+.dialog-header h2 {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 680;
+  line-height: 1.15;
+}
+
+.dialog-header span {
+  margin-top: 6px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.dialog-header .rounded-md {
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.dialog-header button {
+  width: 38px;
+  height: 38px;
+  border-color: var(--chat-panel-border, var(--border));
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.conversation-dialog .search-field {
+  margin-top: 2px;
+}
+
+.conversation-dialog .search-field input {
+  min-height: 44px;
+  border-color: var(--chat-panel-border, var(--border));
+  border-radius: 11px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 15px;
+}
+
+.conversation-dialog .search-field input:focus {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--chat-panel-border, var(--border)));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.conversation-dialog .result-list {
+  align-content: start;
+  min-height: 12rem;
+  max-height: 20rem;
+  border: 1px solid var(--chat-panel-border, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  padding: 8px;
+}
+
+.conversation-dialog .result-row {
+  min-height: 56px;
+  border-color: transparent;
+  background: transparent;
+  padding: 10px;
+}
+
+.conversation-dialog .result-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--chat-panel-border, var(--border)));
+  background: color-mix(in srgb, var(--accent) 8%, var(--muted));
+}
+
+.modal-empty-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  min-height: 11rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.modal-empty-state svg {
+  color: var(--accent);
+}
+
+.modal-empty-state strong {
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.modal-empty-state span {
+  font-size: 13px;
+}
+
+.dialog-footer {
+  border-top: 0;
+  padding: 0;
 }
 
 /* app/components/chat/CreateGroupDialog.vue */

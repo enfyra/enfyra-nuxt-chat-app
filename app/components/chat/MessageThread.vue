@@ -201,6 +201,11 @@ watch(
         <h2>Select a conversation</h2>
         <p>Choose a chat from the conversation list to read messages.</p>
       </div>
+      <div v-else-if="messages.length === 0" class="thread-empty-state">
+        <MessageCircle :size="28" />
+        <h2>No messages yet</h2>
+        <p>Send the first message to start this conversation.</p>
+      </div>
       <template v-else>
         <UButton
           v-if="hasOlder"

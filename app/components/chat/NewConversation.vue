@@ -81,6 +81,7 @@ const closeModal = () => {
 const searchUsers = async () => {
   const normalized = query.value.trim();
   const runId = ++searchRun;
+  results.value = [];
   loading.value = true;
   try {
     const filterClauses = [
@@ -95,7 +96,7 @@ const searchUsers = async () => {
         : []),
     ];
     const filter = filterClauses.length ? { _and: filterClauses } : null;
-    const response: any = await $fetch('/enfyra/user_definition', {
+    const response: any = await $fetch('/enfyra/enfyra_user', {
       query: {
         ...(filter ? { filter: JSON.stringify(filter) } : {}),
         limit: groupOpen.value ? 8 : 6,
@@ -197,7 +198,6 @@ onBeforeUnmount(() => {
         <UCard class="conversation-dialog" role="dialog" aria-modal="true" :aria-label="groupOpen ? 'Create group chat' : 'Start direct message'">
           <header class="dialog-header">
             <div>
-              <UBadge color="neutral" variant="soft">{{ groupOpen ? 'Create group' : 'Start DM' }}</UBadge>
               <h2>{{ groupOpen ? 'New group conversation' : 'New direct message' }}</h2>
               <span>{{ groupOpen ? 'Select people first. You can rename the group later.' : 'Search a user and start chatting.' }}</span>
             </div>
@@ -226,7 +226,11 @@ onBeforeUnmount(() => {
           </UInput>
 
           <div class="result-list">
-            <p v-if="loading" class="empty-state">Loading users...</p>
+            <div v-if="loading" class="modal-empty-state">
+              <Search :size="22" />
+              <strong>Searching users</strong>
+              <span>Looking through Enfyra users...</span>
+            </div>
             <div v-for="user in results" :key="user.id" class="result-row">
               <span class="result-avatar">{{ user.displayName.slice(0, 1) }}</span>
               <span class="result-copy">
@@ -241,7 +245,11 @@ onBeforeUnmount(() => {
                 Message
               </UButton>
             </div>
-            <p v-if="!loading && results.length === 0" class="empty-state">No users found.</p>
+            <div v-if="!loading && results.length === 0" class="modal-empty-state">
+              <Search :size="22" />
+              <strong>No users found</strong>
+              <span>Try another name or email.</span>
+            </div>
           </div>
 
           <footer v-if="groupOpen" class="dialog-footer">

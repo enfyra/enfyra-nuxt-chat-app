@@ -42,6 +42,7 @@ const closeDialog = () => {
 const searchUsers = async () => {
   const normalized = query.value.trim();
   const runId = ++searchRun;
+  results.value = [];
   loading.value = true;
   try {
     const filterClauses = [
@@ -56,7 +57,7 @@ const searchUsers = async () => {
         : []),
     ];
     const filter = filterClauses.length ? { _and: filterClauses } : null;
-    const response: any = await $fetch('/enfyra/user_definition', {
+    const response: any = await $fetch('/enfyra/enfyra_user', {
       query: {
         ...(filter ? { filter: JSON.stringify(filter) } : {}),
         limit: 8,
