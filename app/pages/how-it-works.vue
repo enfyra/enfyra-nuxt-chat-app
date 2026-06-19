@@ -248,7 +248,7 @@ socket.emit('chat:typing', { conversationId, isTyping: true })
 
 // Read
 socket.emit('chat:read', { conversationId, readAt })
-@SOCKET.emitToRoom('user_' + memberId, 'chat:read', payload)`,
+@SOCKET.emitToCurrentRoom('user_' + memberId, 'chat:read', payload)`,
     links: [
       { label: 'Client typing', tab: 'nuxt', target: 'nuxt-typing' },
       { label: 'Server typing handler', tab: 'enfyra', target: 'enfyra-typing' },
@@ -473,7 +473,7 @@ await Promise.all((unreadRows.data || []).map((row) =>
 for (const row of recipients.data || []) {
   const memberId = row.member?.id || row.member;
   if (memberId) {
-    @SOCKET.emitToRoom('user_' + memberId, 'chat:read', payload);
+    @SOCKET.emitToCurrentRoom('user_' + memberId, 'chat:read', payload);
   }
 }`,
     links: [

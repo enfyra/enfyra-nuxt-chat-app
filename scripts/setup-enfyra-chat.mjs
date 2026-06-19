@@ -1024,7 +1024,7 @@ const recipients = await @REPOS.chat_conversation_member.find({
 for (const row of recipients.data || []) {
   const memberId = row.member?.id || row.member;
   if (memberId) {
-    @SOCKET.emitToRoom('user_' + memberId, 'chat:read', {
+    @SOCKET.emitToCurrentRoom('user_' + memberId, 'chat:read', {
   conversationId: @BODY.conversationId,
   userId: @USER.id,
   readAt,
@@ -1052,28 +1052,30 @@ const recipients = await @REPOS.chat_conversation_member.find({
   fields: 'member',
   limit: 50,
 });
-const readReceipts = (recipients.data || [])
+const recipientIds = Array.from(new Set((recipients.data || [])
   .map((row) => row.member?.id || row.member)
-  .filter(Boolean)
-  .map((memberId) => {
-    const isSender = memberId === @USER.id;
-    return {
-      isRead: isSender,
-      readAt: isSender ? createdAt : null,
-      conversation: { id: targetConversationId },
-      member: { id: memberId },
-    };
-  });
+  .filter(Boolean)));
 const messageResult = await @REPOS.chat_message.create({
   data: {
     text,
     persistStatus: 'persisted',
     conversation: { id: targetConversationId },
     sender: { id: @USER.id },
-    readReceipts,
   },
 });
 const persisted = messageResult.data?.[0] || {};
+await Promise.all(recipientIds.map((memberId) => {
+  const isSender = memberId === @USER.id;
+  return @REPOS.chat_message_read.create({
+    data: {
+      message: { id: persisted.id || clientMessageId },
+      conversation: { id: targetConversationId },
+      member: { id: memberId },
+      isRead: isSender,
+      readAt: isSender ? createdAt : null,
+    },
+  });
+}));
 const message = {
   id: persisted.id || clientMessageId,
   clientMessageId,
@@ -1223,18 +1225,21 @@ if (text) {
       persistStatus: 'persisted',
       conversation: { id: conversationId },
       sender: { id: ownerId },
-      readReceipts: memberIds.map((memberId) => {
-        const isSender = memberId === ownerId;
-        return {
-          isRead: isSender,
-          readAt: isSender ? createdAt : null,
-          conversation: { id: conversationId },
-          member: { id: memberId },
-        };
-      }),
     },
   });
   const persisted = messageResult.data?.[0] || {};
+  await Promise.all(memberIds.map((memberId) => {
+    const isSender = memberId === ownerId;
+    return @REPOS.chat_message_read.create({
+      data: {
+        message: { id: persisted.id || clientMessageId },
+        conversation: { id: conversationId },
+        member: { id: memberId },
+        isRead: isSender,
+        readAt: isSender ? createdAt : null,
+      },
+    });
+  }));
   const message = {
     id: persisted.id || clientMessageId,
     clientMessageId,

@@ -134,6 +134,27 @@ export const useChatData = () => {
     });
   };
 
+  const fetchMembershipsForConversations = async (conversationIds: string[]) => {
+    const ids = Array.from(new Set(conversationIds.map(idOf).filter(Boolean)));
+    if (!ids.length) return new Map<string, ConversationMember[]>();
+    const response = await api.get('/chat_conversation_member', {
+      query: {
+        filter: JSON.stringify({ conversation: { id: { _in: ids } } }),
+        deep: JSON.stringify({ member: {} }),
+        limit: LOAD_ALL_LIMIT,
+      },
+    });
+    const grouped = new Map<string, ConversationMember[]>();
+    for (const row of api.rowsOf<any>(response)) {
+      const conversationId = idOf(row.conversation?.id || row.conversation);
+      if (!conversationId) continue;
+      const members = grouped.get(conversationId) || [];
+      members.push(mapMember(row));
+      grouped.set(conversationId, members);
+    }
+    return grouped;
+  };
+
   const mapMessage = (row: any, conversationId: string): ChatMessage => ({
     id: idOf(row.id),
     conversationId: idOf(conversationId),
@@ -235,18 +256,22 @@ export const useChatData = () => {
       });
 
       const conversations = api.rowsOf<any>(response);
+      const membershipsByConversation = await fetchMembershipsForConversations(
+        conversations.map((conversation) => idOf(conversation?.id)),
+      );
       const unreadConversationIds = await fetchUnreadConversationIds();
       const items: ChatListItem[] = [];
       for (const conversation of conversations) {
         if (!conversation?.id) continue;
         const conversationId = idOf(conversation.id);
-        const mappedConversation = mapConversation(conversation);
+        const memberships = membershipsByConversation.get(conversationId) || [];
+        const mappedConversation = mapConversation(conversation, memberships);
         const unreadCount = unreadConversationIds.has(conversationId) ? 1 : 0;
         mappedConversation.unreadCount = unreadCount;
         items.push({
           conversation: mappedConversation,
-          membership: mapMember({ member: user.value }),
-          members: [],
+          membership: memberships.find((member) => sameId(member.member.id, user.value?.id)) || mapMember({ member: user.value }),
+          members: memberships.map((member) => member.member),
           unreadCount,
         });
       }
